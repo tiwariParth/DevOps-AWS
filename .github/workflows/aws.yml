@@ -4,32 +4,36 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Login to AWS ECR
         run: |
           aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin YOUR_ECR_URI
+          aws configure set region ${{ secrets.AWS_REGION }}
+          aws ecr get-login-password | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-      - name: Build and push Docker image
+      - name: Build and Push Docker Image
         run: |
-          docker build -t devops-app .
-          docker tag devops-app:latest /devops-app:latest
-          docker push YOUR_ECR_URI/devops-app:latest
+          docker build -t ${{ secrets.ECR_REGISTRY }}/devops-app:latest .
+          docker push ${{ secrets.ECR_REGISTRY }}/devops-app:latest
 
-      - name: SSH into EC2 and deploy container
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.SSH_PRIVATE_KEY }} ec2-user@65.0.20.111 << 'EOF'
-          docker stop devops-app || true
-          docker rm devops-app || true
-          docker pull /devops-app:latest
-          docker run -d -p 8080:80 --name devops-app /devops-app:latest
-          EOF
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            aws ecr get-login-password | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+            docker pull ${{ secrets.ECR_REGISTRY }}/devops-app:latest
+            docker stop devops-app || true
+            docker rm devops-app || true
+            docker run -d -p 8080:80 --name devops-app ${{ secrets.ECR_REGISTRY }}/devops-app:latest
