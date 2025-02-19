@@ -1,0 +1,30 @@
+- name: Setup EC2 instance with Docker and Nginx
+  hosts: ec2
+  become: yes
+  tasks:
+    - name: Update packages
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Install Docker
+      package:
+        name: docker
+        state: present
+
+    - name: Enable and start Docker service
+      service: 
+        name: docker
+        state: started
+        enabled: yes
+    
+    - name: Install Nginx
+      package:
+        name: nginx
+        state: present
+    
+    - name: Enable and start Nginx service
+      service: 
+        name: nginx
+        state: started
+        enabled: yes
